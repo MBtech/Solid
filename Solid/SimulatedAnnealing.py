@@ -44,7 +44,7 @@ class SimulatedAnnealing:
             raise ValueError('Annealing schedule must be either "exponential" or "linear"')
 
     def __init__(self, initial_state, temp_begin, schedule_constant, max_steps,
-                 min_energy=None, schedule='exponential'):
+                 min_energy=None, schedule='exponential', n_samples=1, points_to_evaluate=[]):
         """
 
         :param initial_state: initial state of annealing algorithm
@@ -55,6 +55,9 @@ class SimulatedAnnealing:
         :param schedule: 'exponential' or 'linear' annealing schedule
         """
         self.initial_state = initial_state
+        self.n_samples = n_samples
+        self.points_to_evaluate = points_to_evaluate
+
 
         if isinstance(max_steps, int) and max_steps > 0:
             self.max_steps = max_steps
@@ -116,6 +119,15 @@ class SimulatedAnnealing:
         """
         pass
 
+    @abstractmethod
+    def _random(self):
+        """
+        Generate a random state
+
+        :return: energy of state
+        """
+        pass
+
     def _accept_neighbor(self, neighbor):
         """
         Probabilistically determines whether or not to accept a transition to a neighbor
@@ -137,10 +149,30 @@ class SimulatedAnnealing:
         :return: best state and best energy
         """
         self._clear()
-        self.current_state = self.initial_state
         self.current_temp = self.start_temp
-        self.best_energy = self._energy(self.current_state)
-        for i in range(self.max_steps):
+
+        n = 0
+        if len(self.points_to_evaluate) > 0:
+            for point in self.points_to_evaluate:
+                self.current_state = point
+                self.current_energy = self._energy(self.current_state)
+                if self.best_energy == None or self.current_energy < self.best_energy:
+                    self.best_state = self.current_state
+                    self.best_energy = self.current_energy
+
+        elif self.n_samples > 1:
+            while n < self.n_samples:
+                self.current_state = self._random()
+                self.current_energy = self._energy(self.current_state)
+                if self.best_energy == None or self.current_energy < self.best_energy:
+                    self.best_state = self.current_state
+                    self.best_energy = self.current_energy
+                n+=1
+        else:
+            self.current_state = self.initial_state
+            self.best_energy = self._energy(self.current_state)
+
+        for i in range(self.max_steps-self.n_samples-len(self.points_to_evaluate)):
             self.cur_steps += 1
 
             if verbose and ((i + 1) % 100 == 0):

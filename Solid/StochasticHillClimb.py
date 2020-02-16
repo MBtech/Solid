@@ -17,12 +17,12 @@ class StochasticHillClimb:
     cur_steps = 0
     max_steps = None
 
-    best_objective = None
+    best_objective = float('-inf')
     max_objective = None
 
     temp = None
 
-    def __init__(self, initial_state, temp, max_steps, max_objective=None):
+    def __init__(self, initial_state, temp, max_steps, max_objective=None, n_samples=1, points_to_evaluate=[]):
         """
 
         :param initial_state: initial state of hill climbing
@@ -31,6 +31,8 @@ class StochasticHillClimb:
         :param max_objective: objective function to stop algorithm once reached
         """
         self.initial_state = initial_state
+        self.n_samples = n_samples
+        self.points_to_evaluate = points_to_evaluate
 
         if isinstance(max_steps, int) and max_steps > 0:
             self.max_steps = max_steps
@@ -67,7 +69,7 @@ class StochasticHillClimb:
         self.cur_steps = 0
         self.current_state = None
         self.best_state = None
-        self.best_objective = None
+        self.best_objective = float('-inf')
 
     @abstractmethod
     def _neighbor(self):
@@ -88,6 +90,15 @@ class StochasticHillClimb:
         """
         pass
 
+    @abstractmethod
+    def _random(self):
+        """
+        Generate a random state
+
+        :return: energy of state
+        """
+        pass
+
     def _accept_neighbor(self, neighbor):
         """
         Probabilistically determines whether or not to accept a transition to a neighbor
@@ -96,7 +107,11 @@ class StochasticHillClimb:
         :return: boolean indicating whether or not transition was accepted
         """
         try:
-            p = 1. / (1 + (exp((self._objective(self.current_state) - self._objective(neighbor)) / self.temp)))
+            # p = 1. / (1 + (exp((self._objective(self.current_state) - self._objective(neighbor)) / self.temp)))
+            p = exp(-(self._objective(self.current_state) - self._objective(neighbor)) / self.temp)
+            # print("Objective value for current state: " + str(self._objective(self.current_state)))
+            # print("Objective value for neighbor state: " + str(self._objective(neighbor)))
+            # print("P value: " + str(p))
         except OverflowError:
             return True
         return True if p >= 1 else p >= random()
@@ -109,10 +124,34 @@ class StochasticHillClimb:
         :return: best state and best objective function value
         """
         self._clear()
-        self.current_state = self.initial_state
-        for i in range(self.max_steps):
-            self.cur_steps += 1
 
+        self.current_objective = self.best_objective
+
+        n = 0
+        if len(self.points_to_evaluate) > 0:
+            for point in self.points_to_evaluate:
+                self.current_state = point
+                self.current_objective = self._objective(self.current_state)
+                if self.current_objective > self.best_objective:
+                    self.best_state = self.current_state
+                    self.best_objective = self.current_objective
+
+        elif self.n_samples > 1:
+            while n < self.n_samples:
+                self.current_state = self._random()
+                self.current_objective = self._objective(self.current_state)
+                if self.current_objective > self.best_objective:
+                    self.best_state = self.current_state
+                    self.best_objective = self.current_objective
+                n+=1
+        else:
+            self.current_state = self.initial_state
+            self.best_objective= self._objective(self.current_state)
+
+        # self.temp = -0.5*self.best_objective
+
+        for i in range(self.max_steps-self.n_samples-len(self.points_to_evaluate)):
+            self.cur_steps += 1
             if ((i + 1) % 100 == 0) and verbose:
                 print(self)
 
